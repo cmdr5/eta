@@ -1,3 +1,5 @@
+type EtaInput = RequestInfo | URL;
+
 type EtaRequestInit = Omit<RequestInit, "body"> & {
   timeout?: number;
   responseType?: EtaResponseType;
@@ -21,6 +23,16 @@ type EtaConfig = {
   responseType?: EtaResponseType;
 };
 
+interface EtaInstance {
+  (input: EtaInput, init?: EtaRequestInit): Promise<EtaResponse>;
+  get: (input: EtaInput, init?: EtaRequestInit) => Promise<EtaResponse>;
+  post: (input: EtaInput, init?: EtaRequestInit) => Promise<EtaResponse>;
+  put: (input: EtaInput, init?: EtaRequestInit) => Promise<EtaResponse>;
+  delete: (input: EtaInput, init?: EtaRequestInit) => Promise<EtaResponse>;
+  patch: (input: EtaInput, init?: EtaRequestInit) => Promise<EtaResponse>;
+  head: (input: EtaInput, init?: EtaRequestInit) => Promise<EtaResponse>;
+}
+
 class HTTPError extends Error {
   constructor(public request: Request, public response: EtaResponse) {
     super(
@@ -32,10 +44,9 @@ class HTTPError extends Error {
   }
 }
 
-const create =
-  (config: EtaConfig = {}) =>
-  async (
-    input: RequestInfo | URL,
+const create = (config: EtaConfig = {}) => {
+  const eta = (async (
+    input: EtaInput,
     { json, timeout, responseType, ...init }: EtaRequestInit = {}
   ) => {
     if (config.baseURL) {
@@ -83,6 +94,16 @@ const create =
 
     if (!response.ok) throw new HTTPError(request, response);
     return response;
-  };
+  }) as EtaInstance;
+
+  (["get", "post", "put", "delete", "patch", "head"] as const).forEach(
+    (method) => {
+      eta[method] = (input: EtaInput, init?: EtaRequestInit) =>
+        eta(input, { ...init, method });
+    }
+  );
+
+  return eta;
+};
 
 export default create;
