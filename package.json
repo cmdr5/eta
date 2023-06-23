@@ -5,7 +5,9 @@
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "scripts": {},
+  "scripts": {
+    "format": "prettier --write ."
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/cmdr5/eta.git"
@@ -16,10 +18,6 @@
     "url": "https://cmdr5.dev"
   },
   "license": "MIT",
-  "dependencies": {
-    "deepmerge": "^4.3.1",
-    "type-fest": "^3.12.0"
-  },
   "devDependencies": {
     "@commitlint/cli": "^17.6.5",
     "@commitlint/config-conventional": "^17.6.5",
