@@ -1,14 +1,4 @@
-export type EtaInput = RequestInfo | URL;
-
-export type EtaRequestInit = Omit<RequestInit, "body"> & {
-  timeout?: number;
-  responseType?: EtaResponseType;
-} & (
-    | { json?: unknown; body?: never }
-    | { json?: never; body?: BodyInit | null }
-  );
-
-export type EtaResponseType =
+export type ResponseType =
   | "arrayBuffer"
   | "blob"
   | "formData"
@@ -18,25 +8,30 @@ export type EtaResponseType =
 export type EtaResponse = Response & { data?: unknown };
 
 export type EtaConfig = {
-  baseURL?: string | URL;
+  baseURL?: string;
+  headers?: HeadersInit;
   hooks?: {
     onBeforeRequest?: ((request: Request) => Promise<void> | void)[];
     onAfterResponse?: ((response: Response) => Promise<void> | void)[];
   };
-  headers?: HeadersInit;
+  responseType?: ResponseType;
   timeout?: number;
-  responseType?: EtaResponseType;
 };
 
-export interface EtaInstance {
-  (input: EtaInput, init?: EtaRequestInit): Promise<EtaResponse>;
-  get: (input: EtaInput, init?: EtaRequestInit) => Promise<EtaResponse>;
-  post: (input: EtaInput, init?: EtaRequestInit) => Promise<EtaResponse>;
-  put: (input: EtaInput, init?: EtaRequestInit) => Promise<EtaResponse>;
-  delete: (input: EtaInput, init?: EtaRequestInit) => Promise<EtaResponse>;
-  patch: (input: EtaInput, init?: EtaRequestInit) => Promise<EtaResponse>;
-  head: (input: EtaInput, init?: EtaRequestInit) => Promise<EtaResponse>;
-}
+type Fn = (
+  input: string | URL,
+  init?: Omit<RequestInit, "headers"> & {
+    headers?:
+      | [string, string | undefined][]
+      | Record<string, string | undefined>
+      | Headers;
+    json?: unknown;
+    responseType?: ResponseType | undefined;
+    timeout?: number | undefined;
+  }
+) => Promise<EtaResponse>;
+
+export type Eta = Fn & { [K in (typeof methods)[number]]: Fn };
 
 export class HTTPError extends Error {
   constructor(public request: Request, public response: EtaResponse) {
@@ -49,31 +44,33 @@ export class HTTPError extends Error {
   }
 }
 
+const methods = ["get", "post", "put", "delete", "patch", "head"] as const;
 const create = (config: EtaConfig = {}) => {
-  const eta = (async (
-    input: EtaInput,
-    { json, timeout, responseType, ...init }: EtaRequestInit = {}
-  ) => {
-    if (config.baseURL) {
-      if (input instanceof Request)
-        throw new TypeError(
-          "`input` must be a string or URL when using `baseURL`"
-        );
-      input = new URL(input, config.baseURL);
-    }
+  const eta = (async (input, opts = {}) => {
+    const skipTimeout = "timeout" in opts && opts.timeout === undefined;
+    const skipDecoding =
+      "responseType" in opts && opts.responseType === undefined;
+
+    const { json, responseType, timeout, ...init } = opts;
 
     const headers = new Headers(config.headers);
-    for (const [key, value] of new Headers(init.headers))
-      headers.set(key, value);
+    for (const [key, value] of new Headers(init.headers as HeadersInit))
+      if (value === "undefined") headers.delete(key);
+      else headers.set(key, value);
     init.headers = headers;
 
-    if (config.timeout !== undefined || timeout !== undefined) {
-      init.signal = AbortSignal.timeout(timeout ?? config.timeout!);
+    if (config.baseURL) {
+      if (typeof input === "string" && input.startsWith("/"))
+        throw new Error(
+          "`input` must not begin with a slash when using `baseURL`"
+        );
+      if (!config.baseURL.endsWith("/")) config.baseURL += "/";
+      input = new URL(input, config.baseURL);
     }
 
     if (json !== undefined) {
       if (init.body !== undefined)
-        throw new Error("`json` and `body` cannot be used together");
+        throw new Error("`json` and `body` must not be used together");
       init.body = JSON.stringify(json);
       init.headers.set("content-length", init.body.length.toString());
       init.headers.set(
@@ -82,11 +79,14 @@ const create = (config: EtaConfig = {}) => {
       );
     }
 
-    const request = new Request(input, init);
+    if (!skipTimeout && (config.timeout !== undefined || timeout !== undefined))
+      init.signal = AbortSignal.timeout(timeout ?? config.timeout!);
+
+    const request = new Request(input, init as RequestInit);
     for (const hook of config.hooks?.onBeforeRequest ?? []) await hook(request);
     const response = (await fetch(request)) as EtaResponse;
 
-    if (config.responseType || responseType) {
+    if (!skipDecoding && (config.responseType || responseType)) {
       try {
         response.data = await response[responseType ?? config.responseType!]();
       } catch (_) {
@@ -99,14 +99,11 @@ const create = (config: EtaConfig = {}) => {
 
     if (!response.ok) throw new HTTPError(request, response);
     return response;
-  }) as EtaInstance;
+  }) as Eta;
 
-  (["get", "post", "put", "delete", "patch", "head"] as const).forEach(
-    (method) => {
-      eta[method] = (input: EtaInput, init?: EtaRequestInit) =>
-        eta(input, { ...init, method });
-    }
-  );
+  methods.forEach((method) => {
+    eta[method] = (input, init) => eta(input, { ...init, method });
+  });
 
   return eta;
 };
