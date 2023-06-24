@@ -1,6 +1,6 @@
-type EtaInput = RequestInfo | URL;
+export type EtaInput = RequestInfo | URL;
 
-type EtaRequestInit = Omit<RequestInit, "body"> & {
+export type EtaRequestInit = Omit<RequestInit, "body"> & {
   timeout?: number;
   responseType?: EtaResponseType;
 } & (
@@ -8,11 +8,16 @@ type EtaRequestInit = Omit<RequestInit, "body"> & {
     | { json?: never; body?: BodyInit | null }
   );
 
-type EtaResponseType = "arrayBuffer" | "blob" | "formData" | "json" | "text";
+export type EtaResponseType =
+  | "arrayBuffer"
+  | "blob"
+  | "formData"
+  | "json"
+  | "text";
 
-type EtaResponse = Response & { data?: unknown };
+export type EtaResponse = Response & { data?: unknown };
 
-type EtaConfig = {
+export type EtaConfig = {
   baseURL?: string | URL;
   hooks?: {
     onBeforeRequest?: ((request: Request) => Promise<void> | void)[];
@@ -23,7 +28,7 @@ type EtaConfig = {
   responseType?: EtaResponseType;
 };
 
-interface EtaInstance {
+export interface EtaInstance {
   (input: EtaInput, init?: EtaRequestInit): Promise<EtaResponse>;
   get: (input: EtaInput, init?: EtaRequestInit) => Promise<EtaResponse>;
   post: (input: EtaInput, init?: EtaRequestInit) => Promise<EtaResponse>;
@@ -33,7 +38,7 @@ interface EtaInstance {
   head: (input: EtaInput, init?: EtaRequestInit) => Promise<EtaResponse>;
 }
 
-class HTTPError extends Error {
+export class HTTPError extends Error {
   constructor(public request: Request, public response: EtaResponse) {
     super(
       `Request failed with code \`${response.status}\`${
