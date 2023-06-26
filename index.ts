@@ -73,11 +73,18 @@ const create = (config: EtaConfig = {}) => {
         throw new Error("`json` and `body` must not be used together");
       init.body = JSON.stringify(json);
       init.headers.set("content-length", init.body.length.toString());
-      init.headers.set(
-        "content-type",
-        init.headers.get("content-type") ?? "application/json"
-      );
+      if (!init.headers.has("content-type"))
+        init.headers.set("content-type", "application/json");
     }
+
+    if (
+      (responseType === "json" || responseType === "text") &&
+      !init.headers.has("accept")
+    )
+      init.headers.set(
+        "accept",
+        responseType === "json" ? "application/json" : "text/plain"
+      );
 
     if (!skipTimeout && (config.timeout !== undefined || timeout !== undefined))
       init.signal = AbortSignal.timeout(timeout ?? config.timeout!);
