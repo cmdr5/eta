@@ -5,14 +5,14 @@ export type ResponseType =
   | "json"
   | "text";
 
-export type EtaResponse<T = unknown> = Response & { data: T };
+export type EtaResponse<T = any> = Response & { data: T };
 
 export type EtaConfig = {
   baseURL?: string;
   headers?: HeadersInit;
   hooks?: {
     beforeRequest?: ((request: Request) => Promise<void> | void)[];
-    afterResponse?: ((response: Response) => Promise<void> | void)[];
+    afterResponse?: ((response: EtaResponse) => Promise<void> | void)[];
   };
   responseType?: ResponseType;
   timeout?: number;
