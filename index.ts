@@ -5,20 +5,20 @@ export type ResponseType =
   | "json"
   | "text";
 
-export type EtaResponse = Response & { data?: unknown };
+export type EtaResponse<T = unknown> = Response & { data: T };
 
 export type EtaConfig = {
   baseURL?: string;
   headers?: HeadersInit;
   hooks?: {
-    onBeforeRequest?: ((request: Request) => Promise<void> | void)[];
-    onAfterResponse?: ((response: Response) => Promise<void> | void)[];
+    beforeRequest?: ((request: Request) => Promise<void> | void)[];
+    afterResponse?: ((response: Response) => Promise<void> | void)[];
   };
   responseType?: ResponseType;
   timeout?: number;
 };
 
-type Fn = (
+type Fn = <T>(
   input: string | URL,
   init?: Omit<RequestInit, "headers"> & {
     headers?:
@@ -29,7 +29,7 @@ type Fn = (
     responseType?: ResponseType | undefined;
     timeout?: number | undefined;
   }
-) => Promise<EtaResponse>;
+) => Promise<EtaResponse<T>>;
 
 export type Eta = Fn & { [K in (typeof methods)[number]]: Fn };
 
@@ -83,7 +83,7 @@ const create = (config: EtaConfig = {}) => {
       init.signal = AbortSignal.timeout(timeout ?? config.timeout!);
 
     const request = new Request(input, init as RequestInit);
-    for (const hook of config.hooks?.onBeforeRequest ?? []) await hook(request);
+    for (const hook of config.hooks?.beforeRequest ?? []) await hook(request);
     const response = (await fetch(request)) as EtaResponse;
 
     if (!skipDecoding && (config.responseType || responseType)) {
@@ -94,10 +94,9 @@ const create = (config: EtaConfig = {}) => {
       }
     }
 
-    for (const hook of config.hooks?.onAfterResponse ?? [])
-      await hook(response);
-
+    for (const hook of config.hooks?.afterResponse ?? []) await hook(response);
     if (!response.ok) throw new HTTPError(request, response);
+
     return response;
   }) as Eta;
 
